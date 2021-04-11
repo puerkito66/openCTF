@@ -1,3 +1,11 @@
+"""General User Informative Views.
+
+This module only displays info about the participants of the CTF.
+Since everybody can see all participants in the contest, there's no point asking for
+sign up.
+"""
+
+
 from django.shortcuts import render
 from django.views import View
 from django.views.generic import DetailView, ListView
@@ -12,5 +20,5 @@ class UserDetailView(DetailView):
     pass
 
 
-class UserDetailView(ListViewclear):
+class UserListView(ListView):
     pass

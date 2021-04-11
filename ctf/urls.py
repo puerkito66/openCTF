@@ -1,10 +1,12 @@
 from django.urls import path
-from django.contrib.auth.views import LogoutView, LoginView
+from django.contrib.auth import views
 
 app_name = "ctf"
 
 urlpatterns = [
     # Authentication
-    path("signin/", LoginView.as_view(), name="signin"),
-    path("signout/", LogoutView.as_view(), name="signout"),
+    path("signin/", views.LoginView.as_view(), name="signin"),
+    path("signout/", views.LogoutView.as_view(), name="signout"),
+    # Password reset
+    path("password-reset/", views.PasswordResetView.as_view(), name="reset_passowrd"),
 ]

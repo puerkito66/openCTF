@@ -13,4 +13,4 @@ class IsVerifiedMixin(UserPassesTestMixin):
     )
 
     def test_func(self):
-        return self.request.user.profile.is_verified
+        return self.request.user.is_active

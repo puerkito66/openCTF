@@ -13,8 +13,8 @@ class AccountVerificationTokenGenerator(PasswordResetTokenGenerator):
         return (
             six.text_type(user.pk)
             + six.text_type(timestamp)
-            + six.text_type(user.profile.is_verified)
+            + six.text_type(user.profile.is_active)
         )
 
 
-account_activation_token = AccountActivationTokenGenerator()
+account_verification_token = AccountActivationTokenGenerator()

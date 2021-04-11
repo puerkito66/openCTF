@@ -66,12 +66,6 @@ class Profile(models.Model):
     age = models.SmallIntegerField(_("age"), blank=True)
 
     # Account management
-    is_verified = models.BooleanField(
-        verbose_name=_("user verification status"),
-        help_text=_("Is the user verified?"),
-        null=False,
-        default=False,
-    )
     is_banned = models.BooleanField(
         verbose_name=_("user ban status"),
         help_text=_("Is the user banned?"),
