@@ -2,7 +2,7 @@ from django.contrib.auth.tokens import PasswordResetTokenGenerator
 import six
 
 
-class AccountVerificationTokenGenerator(PasswordResetTokenGenerator):
+class AccountActivationTokenGenerator(PasswordResetTokenGenerator):
     """The Account Verification Token Generator class.
 
     Wrapper around the PasswordResetTokenGenerator class but for
@@ -13,8 +13,8 @@ class AccountVerificationTokenGenerator(PasswordResetTokenGenerator):
         return (
             six.text_type(user.pk)
             + six.text_type(timestamp)
-            + six.text_type(user.profile.is_active)
+            + six.text_type(user.profile.is_verified)
         )
 
 
-account_verification_token = AccountActivationTokenGenerator()
+account_verifier = AccountActivationTokenGenerator()

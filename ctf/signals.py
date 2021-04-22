@@ -7,8 +7,8 @@ import hashlib
 from .models import Challenge
 
 
-@receiver(pre_save, sender=Votante)
-def create_key(sender, instance, **kwargs):
+@receiver(pre_save, sender=Challenge)
+def hash_flag(sender, instance, **kwargs):
     """Flag Hasher.
 
     Hashes the flag of the challenge before it's saved on the database, to prevent
