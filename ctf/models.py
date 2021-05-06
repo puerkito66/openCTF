@@ -2,7 +2,7 @@
 The OpenCTF Accounting Models Runtime Module.
 
 This module defines two main models:
-* The Player Models (PlofilePlayer and Team Models)
+* The Player Models (ProfilePlayer and Team Models)
 * The Challenges Models (Challenge and Submission Models)
 
 There's also a class definition for the Django User that fixes the problem of
@@ -10,6 +10,8 @@ case-sensitive usernames.
 """
 
 import hashlib
+
+from functools import reduce
 
 from django.conf import settings
 
@@ -23,31 +25,72 @@ from django.contrib.auth import get_user_model
 from django.utils.translation import ugettext_lazy as _
 
 from .managers import CaseInsensitiveUserManager
+from .validators import TeamnameValidator
 
 
-User = get_user_model()
-
-
-class CaseInsensitiveUser(AbstractUser):
+class User(AbstractUser):
     """User class that avoids the problem of case-sensitive usernames.
 
     Due to Django usernames being saved and processed case-sensitive, this can be a
     problem. For example, if a user or a team is named "Foo", by common sense "Foo",
     "foo", "foO", "FOO", etc. should mean the same user/team. But Django lacks this
     common sense, so this class, rather than fix, pretends to avoid this problem.
-
-    If this is not a problem for you, you can leave this as-is, else change
-    `AUTH_USER_MODEL` in your settings file to this class.
-
         see: https://code.djangoproject.com/ticket/32543
     """
 
     objects = CaseInsensitiveUserManager()
 
+    class Meta:
+        verbose_name = _("user")
+        verbose_name_plural = _("users")
 
-class ProfilePlayer(models.Model):
+
+class Team(models.Model):
     """
-    Profile Model.
+    Team Model.
+
+    This model manages the Team Profile for the participants.
+    """
+
+    teamname = models.CharField(
+        verbose_name=_("teamname"),
+        help_text=_("The teamname, same as a username. Required."),
+        unique=True,
+        max_length=50,
+        blank=False,
+        validators=[TeamnameValidator()],
+    )
+    password = models.CharField(_("password"), max_length=128, blank=False)
+
+    institution = models.CharField(_("institution"), max_length=100, blank=True)
+    country = models.CharField(_("country"), max_length=100, blank=True)
+
+    is_banned = models.BooleanField(
+        verbose_name=_("team ban status"),
+        help_text=_("Is the team banned?"),
+        null=False,
+        default=False,
+    )
+
+    @property
+    def score(self):
+        """Calculates the team general score."""
+        return reduce(
+            lambda x, y: x + y,
+            self.members.aggregate(
+                score=Sum(
+                    "submition__challenge__score", filter=Q(submition__correct=True)
+                )
+            ).values_list("score", flat=True),
+        )
+
+    def __str__(self):
+        return _("Team[") + self.teamname + "]"
+
+
+class Player(models.Model):
+    """
+    Player Model.
     A profile wrapper for the Django User model that manages the details of the
     participants of the CTF and some other details like verification, etc.
     """
@@ -60,7 +103,7 @@ class ProfilePlayer(models.Model):
 
     # The user this profile belongs to.
     user = models.OneToOneField(
-        to=User, related_name="profile", on_delete=models.CASCADE
+        to=settings.AUTH_USER_MODEL, related_name="profile", on_delete=models.CASCADE
     )
     team = models.ForeignKey(
         to=Team,
@@ -68,6 +111,9 @@ class ProfilePlayer(models.Model):
         related_name="members",
         verbose_name="team",
         help_text="The Team of this participant.",
+        default=None,
+        blank=True,
+        null=True,
     )
 
     # Information stuff
@@ -98,40 +144,6 @@ class ProfilePlayer(models.Model):
         return _("Profile[") + self.user.username + "]"
 
 
-class Team(models.Model):
-    """
-    Team Model.
-
-    This model manages the Team Profile for the participants.
-    """
-
-    name = models.CharField(_("team name"), max_length=50, blank=False)
-    password = models.CharField(_("password"), max_length=128, blank=False)
-
-    captain = models.OneToOneField(
-        Player,
-        verbose_name=_("team captain"),
-        help_text=_("The Team Captain. By default is the team creator."),
-        null=False,
-    )
-    is_banned = models.BooleanField(
-        verbose_name=_("team ban status"),
-        help_text=_("Is the team banned?"),
-        default=False,
-    )
-
-    @property
-    def score(self):
-        self.members.aggregate(
-            score=Sum("submition__challenge__score", filter=Q(submition__correct=False))
-        )
-
-    @classmethod
-    def scores():
-        """Returns a queryset with their scores annotated."""
-        pass
-
-
 class Category(models.Model):
     name = models.CharField(
         verbose_name=_("category name"),
@@ -150,12 +162,28 @@ class Category(models.Model):
 
 
 class Challenge(models.Model):
+    """A Challenge to solve."""
+
+    class Difficulty(models.IntegerChoices):
+        EASY = 0, _("Easy")
+        MEDIUM = 1, _("Medium")
+        HARD = 2, _("Hard")
+        INSANE = 3, _("Insane")
+
     category = models.ForeignKey(
         Category,
         verbose_name=_("challenge category"),
         help_text=_("The category of this challenge"),
         on_delete=models.CASCADE,
         null=False,
+    )
+
+    diffculty = models.SmallIntegerField(
+        verbose_name=_("difficulty"),
+        help_text=_("How complicated is this challenge to solve."),
+        choices=Difficulty.choices,
+        null=False,
+        blank=False,
     )
 
     name = models.CharField(
@@ -188,8 +216,16 @@ class Submition(models.Model):
     challenge = models.ForeignKey(
         Challenge, related_name="submitions", on_delete=models.CASCADE
     )
-    user = models.ForeignKey(
-        Profile, related_name="submitions", on_delete=models.CASCADE
+    player = models.ForeignKey(
+        Player, related_name="submitions", on_delete=models.CASCADE
+    )
+    team = models.ForeignKey(Team, related_name="submitions", on_delete=models.CASCADE)
+
+    correct = models.BooleanField(
+        verbose_name=_("submition_correct"),
+        help_text=_("Whether this sumbition is correct or not."),
+        null=False,
+        default=False,
     )
 
     # Challenge stuff
@@ -199,46 +235,11 @@ class Submition(models.Model):
         auto_now=True,
         null=False,
     )
-    correct = models.BooleanField(null=False, default=False, editable=False)
-
     flag = models.CharField(
         _("flag used"),
         help_text=_(
-            "Flag used in this submition. "
-            "Encoded encoded if correct; plaintext otherwise."
+            "Flag used in this submition. " "Encoded if correct, plaintext otherwise."
         ),
         blank=True,
-        default=False,
         max_length=128,
     )
-
-    def clean(self):
-        """Cleans the model
-
-        Namely, makes sure there's not a correct submition from another team member for
-        the current challenge, since it can only exist once.
-        """
-
-        flag = hashlib.sha512(self.flag.encode()).hexdigest()
-
-        if flag != self.challenge.flag:  # Incorrect submition.
-            self.correct = False
-            return
-
-        self.flag = flag
-        super().clean()
-
-    def save(self):
-        self.full_clean()
-
-        now = timezone.now()
-
-        if (
-            not Submition.objects.filter(
-                challenge=self.challenge, correct=True, user__team=self.user.team
-            ).exists()
-            and now >= settings.CTF_START_DATE
-            and now <= settings.CTF_END_DATE
-        ):  # Checks if this challenge hasn't been solved and if it's still time
-            # for submitions. If False, does nothing.
-            super().save()
